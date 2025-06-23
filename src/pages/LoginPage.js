@@ -2,20 +2,49 @@
 import React, { useState } from 'react';
 import { Container, Form, Button, Card, Alert } from 'react-bootstrap';
 
+// Use API base URL from environment variables
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://10.0.0.30:3000/api/auth/login';
+
 const LoginPage = ({ onLogin, switchToSignUp }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const isValidEmail = (email) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  const handleLogin = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user && user.email === email && user.password === password) {
-      onLogin(user);
-    } else {
-      setError('Invalid email or password');
+  const handleLogin = async () => {
+    if (!isValidEmail(email) || !password.trim()) {
+      setError('Please enter valid credentials.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      // Store token in localStorage
+      localStorage.setItem('token', data.token);
+
+      // Notify parent component about successful login
+      onLogin(data);
+
+      setError('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,9 +84,9 @@ const LoginPage = ({ onLogin, switchToSignUp }) => {
             variant="primary"
             className="w-100 mb-2"
             onClick={handleLogin}
-            disabled={!email || !password || !isValidEmail(email)}
+            disabled={!email || !password || !isValidEmail(email) || loading}
           >
-            Login
+            {loading ? 'Logging in...' : 'Login'}
           </Button>
 
           <Button variant="link" className="w-100" onClick={switchToSignUp}>
@@ -69,4 +98,4 @@ const LoginPage = ({ onLogin, switchToSignUp }) => {
   );
 };
 
-export default LoginPage;
+export default LoginPage

@@ -1,21 +1,26 @@
-// server.js
+// /backend/server.js
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const authRoutes = require('./routes/auth');
-require('dotenv').config();
+const routes = require('./routes');
 
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors({
+  origin: 'http://localhost:3000', // Your React app URL
+}));
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/document_extractor', {
-  useNewUrlParser: true, useUnifiedTopology: true,
-})
-.then(() => console.log('✅ MongoDB connected'))
-.catch(err => console.error('❌ MongoDB connection error:', err));
+// Routes
+app.use('/', routes);
 
-app.use('/', authRoutes);
+// Test route
+app.get('/', (req, res) => {
+  res.json({ message: 'Backend is running!' });
+});
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
+});
