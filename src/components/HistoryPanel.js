@@ -19,4 +19,3 @@ const HistoryPanel = ({ history }) => {
 };
 
 export default HistoryPanel;
-
