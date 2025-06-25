@@ -1,47 +1,53 @@
+// src/pages/ExtractorPage.js
+
 import React, { useRef, useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Image } from 'react-bootstrap';
-import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.entry';
+
+// Set worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 const ExtractorPage = () => {
   const [fileName, setFileName] = useState('');
   const [extractedText, setExtractedText] = useState('');
   const [editableText, setEditableText] = useState('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-
   const fileInputRef = useRef(null);
-  const imageInputRef = useRef(null);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    if (file && file.type === 'application/pdf') {
-      setFileName(file.name);
+    if (!file) return;
 
-      const buffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    setFileName(file.name);
 
-      let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        fullText += `Page ${i}:\n`;
-        fullText += content.items.map((item) => item.str).join(' ') + '\n\n';
+    if (file.type === 'application/pdf') {
+      try {
+        const buffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+        let fullText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          fullText += `Page ${i}:\n`;
+          fullText += content.items.map((item) => item.str).join(' ') + '\n\n';
+        }
+
+        setExtractedText(fullText.trim());
+        setEditableText(fullText.trim());
+        setImagePreviewUrl(null); // Hide image preview if a PDF was selected
+      } catch (err) {
+        alert('Failed to process PDF.');
+        console.error(err);
       }
-
-      setExtractedText(fullText.trim());
-      setEditableText(fullText.trim());
-    } else {
-      alert('Please upload a valid PDF file.');
-    }
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
+    } else if (file.type.startsWith('image/')) {
       const imageUrl = URL.createObjectURL(file);
       setImagePreviewUrl(imageUrl);
+      setExtractedText('Extracted text from image goes here...');
+      setEditableText('Extracted text from image goes here...');
     } else {
-      alert('Please upload a valid image file.');
+      alert('Please upload a valid PDF or image file.');
     }
   };
 
@@ -50,8 +56,7 @@ const ExtractorPage = () => {
     setExtractedText('');
     setEditableText('');
     setImagePreviewUrl(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (imageInputRef.current) imageInputRef.current.value = '';
+    fileInputRef.current.value = '';
   };
 
   const renderParagraphs = (text, editable = false) => {
@@ -78,48 +83,34 @@ const ExtractorPage = () => {
 
   return (
     <Container className="mt-4">
-      {/* File Upload Card */}
       <Card className="p-4 mb-4 shadow-sm">
+        <h5 className="mb-3">Upload Document</h5>
         <Form.Group controlId="formFile">
-          <Form.Label><strong>Select a PDF Document</strong></Form.Label>
+          <Form.Label><strong>Upload PDF or Image</strong></Form.Label>
           <Form.Control
             type="file"
-            accept=".pdf"
+            accept=".pdf,image/*"
             onChange={handleFileChange}
             ref={fileInputRef}
           />
         </Form.Group>
 
-        <Form.Group controlId="formImage" className="mt-3">
-          <Form.Label><strong>Upload an Image</strong></Form.Label>
-          <Form.Control
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            ref={imageInputRef}
-          />
-        </Form.Group>
-
-        {(fileName || imagePreviewUrl) && (
+        {fileName && (
           <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap">
             <div className="mb-2">
-              {fileName && <div><strong>PDF:</strong> {fileName}</div>}
-              {imagePreviewUrl && <div><strong>Image Uploaded</strong></div>}
+              <strong>File:</strong> {fileName}
             </div>
-            <Button variant="danger" size="sm" onClick={handleClear}>
-              Delete All
-            </Button>
+            <Button variant="danger" size="sm" onClick={handleClear}>Clear</Button>
           </div>
         )}
       </Card>
 
-      {/* Responsive Image Preview */}
       {imagePreviewUrl && (
         <Card className="mb-4 p-3 shadow-sm text-center">
-          <h6 className="mb-3">Responsive Image Preview</h6>
+          <h6 className="mb-3">Preview Image</h6>
           <Image
             src={imagePreviewUrl}
-            alt="Uploaded Preview"
+            alt="Preview"
             fluid
             rounded
             style={{ maxHeight: '400px', objectFit: 'contain' }}
@@ -127,12 +118,11 @@ const ExtractorPage = () => {
         </Card>
       )}
 
-      {/* PDF Text View/Edit Panels */}
       {extractedText && (
         <Row>
           <Col lg={6} sm={12} className="mb-4">
             <Card className="p-3 h-100 shadow-sm">
-              <h6 className="mb-3">Preview Document</h6>
+              <h6 className="mb-3">Extracted Text</h6>
               <div style={{
                 height: '400px',
                 overflowY: 'scroll',
@@ -148,7 +138,7 @@ const ExtractorPage = () => {
 
           <Col lg={6} sm={12} className="mb-4">
             <Card className="p-3 h-100 shadow-sm">
-              <h6 className="mb-3">Editable Document</h6>
+              <h6 className="mb-3">Editable Text</h6>
               <div style={{
                 height: '400px',
                 overflowY: 'scroll',
