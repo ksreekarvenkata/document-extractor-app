@@ -16,7 +16,7 @@ import {
 import { BsFileEarmarkText } from 'react-icons/bs';
 
 // MODIFIED: Point to your local backend server
-const API_BASE_URL = 'https://d7c0-49-206-252-213.ngrok-free.app/api/auth';
+const API_BASE_URL = 'https://93a1-49-206-252-213.ngrok-free.app';
 
 const DashboardPage = ({ onLogin }) => {
   const [showModal, setShowModal] = useState(false);
