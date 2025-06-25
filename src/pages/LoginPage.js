@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Container, Form, Button, Card, Alert } from 'react-bootstrap';
 
 // Use API base URL from environment variables
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://10.0.0.30:3000/api/auth/login';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://10.0.0.30:3000';
 
 const LoginPage = ({ onLogin, switchToSignUp }) => {
   const [email, setEmail] = useState('');
@@ -21,6 +21,11 @@ const LoginPage = ({ onLogin, switchToSignUp }) => {
     }
 
     setLoading(true);
+
+    // Debugging logs
+    console.log("Connecting to:", `${API_BASE_URL}/login`);
+    console.log("Using env var:", process.env.REACT_APP_API_BASE_URL);
+
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
@@ -28,21 +33,21 @@ const LoginPage = ({ onLogin, switchToSignUp }) => {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log("Response status:", response.status);
+
       const data = await response.json();
+      console.log("Response data:", data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Login failed');
       }
 
-      // Store token in localStorage
       localStorage.setItem('token', data.token);
-
-      // Notify parent component about successful login
       onLogin(data);
-
       setError('');
     } catch (err) {
-      setError(err.message);
+      console.error("Fetch error:", err);
+      setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -79,7 +84,7 @@ const LoginPage = ({ onLogin, switchToSignUp }) => {
               onChange={(e) => setPassword(e.target.value)}
             />
           </Form.Group>
-
+          
           <Button
             variant="primary"
             className="w-100 mb-2"
@@ -98,4 +103,4 @@ const LoginPage = ({ onLogin, switchToSignUp }) => {
   );
 };
 
-export default LoginPage
+export default LoginPage;

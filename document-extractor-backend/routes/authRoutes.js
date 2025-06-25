@@ -2,10 +2,10 @@
 const express = require('express');
 const router = express.Router();
 
-// Import controller logic
-const { login } = require('../controllers/authController');
+// ✅ Import entire controller module
+const authController = require('../controllers/authController');
 
-// Define the /login route
-router.post('/login', login);
+router.post('/login', authController.login);
+router.post('/register', authController.register);
 
 module.exports = router;

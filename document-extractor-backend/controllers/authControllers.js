@@ -2,7 +2,6 @@
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
-  // Dummy check – replace with real DB logic
   if (email === 'test@example.com' && password === 'password') {
     return res.json({
       token: 'fake-jwt-token',
@@ -11,4 +10,15 @@ exports.login = async (req, res) => {
   }
 
   res.status(401).json({ error: 'Invalid credentials' });
+};
+
+exports.register = async (req, res) => {
+  const { name, email, password } = req.body;
+
+  // Dummy register logic
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  res.json({ message: 'User registered successfully!' });
 };
