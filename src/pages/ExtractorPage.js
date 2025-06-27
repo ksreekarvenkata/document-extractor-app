@@ -3,7 +3,7 @@ import { Container, Row, Col, Card, Form, Button, Image } from 'react-bootstrap'
 import * as pdfjsLib from 'pdfjs-dist';
 import { GlobalWorkerOptions } from 'pdfjs-dist';
 
-
+// Use CDN for worker to avoid local issues
 GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const ExtractorPage = ({ onSaveSuccess }) => {
@@ -12,43 +12,14 @@ const ExtractorPage = ({ onSaveSuccess }) => {
   const [editableText, setEditableText] = useState('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [saveMessage, setSaveMessage] = useState('');
-  const [uploadError, setUploadError] = useState('');
 
   const fileInputRef = useRef(null);
 
-
-  const uploadToServer = async (file) => {        // uploading Api 
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await fetch('https://afda-49-206-252-213.ngrok-free.app/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('File upload failed');
-      }
-
-      console.log('✅File uploaded successfully');
-    } catch (err) {
-      console.error('❌Upload error:', err);
-      setUploadError('File upload failed. Please try again.');
-    }
-  };
-
-
-  const handleFileChange = async (e) => {     //handling of the file input section
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setFileName(file.name);
-    setUploadError('');
-    setSaveMessage('');
-
-
-    await uploadToServer(file);      // file uplaoding to server 
 
     if (file.type === 'application/pdf') {
       const buffer = await file.arrayBuffer();
@@ -65,6 +36,9 @@ const ExtractorPage = ({ onSaveSuccess }) => {
       setExtractedText(fullText.trim());
       setEditableText(fullText.trim());
       setImagePreviewUrl(null);
+
+      // Upload file to server
+      uploadToServer(file);
     } else if (file.type.startsWith('image/')) {
       const imageUrl = URL.createObjectURL(file);
       setImagePreviewUrl(imageUrl);
@@ -75,19 +49,42 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     }
   };
 
+  const uploadToServer = async (file) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-  const handleClear = () => {           //clearing the input section
+      const token = localStorage.getItem('token');
+
+      const response = await fetch('https://a777-49-206-252-213.ngrok-free.app/api/pdf/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      console.log('✅ File uploaded to backend');
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+    }
+  };
+
+  const handleClear = () => {
     setFileName('');
     setExtractedText('');
     setEditableText('');
     setImagePreviewUrl(null);
     setSaveMessage('');
-    setUploadError('');
     fileInputRef.current.value = '';
   };
 
   const handleSaveToHistory = () => {
-    const history = JSON.parse(localStorage.getItem('extractionHistory')) || [];      // saved to the local storage can be removed
+    const history = JSON.parse(localStorage.getItem('extractionHistory')) || [];
     const newRecord = {
       fileName,
       content: editableText,
@@ -99,9 +96,8 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     if (onSaveSuccess) onSaveSuccess();
   };
 
-
   const renderParagraphs = (text, editable = false) => {
-    return text.split(/\n\n+/).map((para, idx) => (           // edits of the praagraphs
+    return text.split(/\n\n+/).map((para, idx) => (
       <Card key={idx} className="mb-3 p-2 border border-secondary">
         {editable ? (
           <Form.Control
@@ -130,8 +126,6 @@ const ExtractorPage = ({ onSaveSuccess }) => {
           <Form.Label><strong>Upload PDF or Image</strong></Form.Label>
           <Form.Control type="file" accept=".pdf,image/*" onChange={handleFileChange} ref={fileInputRef} />
         </Form.Group>
-
-        {uploadError && <div className="text-danger mt-2">{uploadError}</div>}
 
         {fileName && (
           <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap">

@@ -1,31 +1,34 @@
+// src/pages/LoginPage.js
 import React, { useState } from 'react';
-import { Container, Form, Button, Alert } from 'react-bootstrap';
+import { Container, Form, Button, Alert, Card } from 'react-bootstrap';
+import ReCAPTCHA from 'react-google-recaptcha';
 
-// Use API base URL from environment variables
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://a861-49-206-252-213.ngrok-free.app';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://fe79-49-206-252-213.ngrok-free.app';
+const SITE_KEY = process.env.REACT_APP_RECAPTCHA_SITE_KEY || '6LcqOG8rAAAAAG8xz5OthOiBzoXryF2LiCWxwPsW'; // Replace with your real key
 
 const LoginPage = ({ onLogin }) => {
-  const [showModal, setShowModal] = useState(false);
-  const [activeForm, setActiveForm] = useState('login');
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [signupFirstName, setSignupFirstName] = useState('');
-  const [signupLastName, setSignupLastName] = useState('');
-  const [signupEmail, setSignupEmail] = useState('');
-  const [signupPassword, setSignupPassword] = useState('');
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
-  // Email validation regex
   const isValidEmail = (email) =>
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
-  // Handle Login
+  const handleCaptcha = (token) => {
+    setCaptchaToken(token);
+    setError('');
+  };
+
   const handleLogin = async () => {
     if (!isValidEmail(loginEmail) || !loginPassword.trim()) {
       setError('Please enter valid credentials.');
-      setMessage('');
+      return;
+    }
+
+    if (!captchaToken) {
+      setError('Please complete the CAPTCHA.');
       return;
     }
 
@@ -34,7 +37,11 @@ const LoginPage = ({ onLogin }) => {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+        body: JSON.stringify({
+          email: loginEmail,
+          password: loginPassword,
+          captcha: captchaToken,
+        }),
       });
 
       const data = await response.json();
@@ -42,145 +49,52 @@ const LoginPage = ({ onLogin }) => {
       if (!response.ok) throw new Error(data.error || 'Login failed');
 
       localStorage.setItem('token', data.token);
-      onLogin(data); // This sets user state in App.js
+      onLogin(data);
       setError('');
-      setShowModal(false);
     } catch (err) {
       setError(err.message);
-      setMessage('');
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handle Sign Up
-  const handleSignUp = async () => {
-    console.log("Attempting to register user:", {
-      firstName: signupFirstName,
-      lastName: signupLastName,
-      email: signupEmail,
-      password: signupPassword,
-    });
-
-    if (!signupFirstName || !signupLastName || !signupEmail || !signupPassword) {
-      setError('All fields are required.');
-      setMessage('');
-      return;
-    }
-
-    if (!isValidEmail(signupEmail)) {
-      setError('Invalid email format.');
-      setMessage('');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: signupFirstName,
-          lastName: signupLastName,
-          email: signupEmail,
-          password: signupPassword,
-        }),
-      });
-
-      console.log("Register response status:", response.status);
-
-      const data = await response.json();
-      console.log("Register response data:", data);
-
-      if (!response.ok) throw new Error(data.error || 'Signup failed');
-
-      setMessage('Account created successfully!');
-      setError('');
-      setActiveForm('login');
-    } catch (err) {
-      console.error("Signup error:", err);
-      setError(err.message);
-      setMessage('');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const openModal = (formType) => {
-    setActiveForm(formType);
-    setError('');
-    setMessage('');
-    setShowModal(true);
   };
 
   return (
     <Container className="mt-5" style={{ maxWidth: '400px' }}>
       <Card className="p-4 shadow-sm">
-        <h4 className="mb-3">Sign Up</h4>
+        <h4 className="mb-3">Login</h4>
         {error && <Alert variant="danger">{error}</Alert>}
         <Form>
-          <Form.Group className="mb-3" controlId="formFirstName">
-            <Form.Label>First Name</Form.Label>
-            <Form.Control
-              type="text"
-              placeholder="Enter first name"
-              value={signupFirstName}
-              required
-              onChange={(e) => setSignupFirstName(e.target.value)}
-            />
-          </Form.Group>
-
-          <Form.Group className="mb-3" controlId="formLastName">
-            <Form.Label>Last Name</Form.Label>
-            <Form.Control
-              type="text"
-              placeholder="Enter last name"
-              value={signupLastName}
-              required
-              onChange={(e) => setSignupLastName(e.target.value)}
-            />
-          </Form.Group>
-
-          <Form.Group className="mb-3" controlId="formEmail">
-            <Form.Label>Email address</Form.Label>
+          <Form.Group className="mb-3">
+            <Form.Label>Email</Form.Label>
             <Form.Control
               type="email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
               placeholder="Enter email"
-              value={signupEmail}
               required
-              isInvalid={!isValidEmail(signupEmail)}
-              onChange={(e) => setSignupEmail(e.target.value)}
             />
-            <Form.Control.Feedback type="invalid">
-              Please enter a valid email address.
-            </Form.Control.Feedback>
           </Form.Group>
 
-          <Form.Group className="mb-4" controlId="formPassword">
+          <Form.Group className="mb-3">
             <Form.Label>Password</Form.Label>
             <Form.Control
               type="password"
-              placeholder="Password"
-              value={signupPassword}
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder="Enter password"
               required
-              onChange={(e) => setSignupPassword(e.target.value)}
             />
           </Form.Group>
 
+          <ReCAPTCHA sitekey={SITE_KEY} onChange={handleCaptcha} className="mb-3" />
+
           <Button
-            variant="success"
-            className="w-100 mb-2"
-            onClick={handleSignUp}
-            disabled={
-              !signupFirstName ||
-              !signupLastName ||
-              !signupEmail ||
-              !signupPassword ||
-              !isValidEmail(signupEmail) ||
-              loading
-            }
+            onClick={handleLogin}
+            variant="primary"
+            className="w-100"
+            disabled={loading}
           >
-            {loading ? 'Creating account...' : 'Create Account'}
+            {loading ? 'Logging in...' : 'Login'}
           </Button>
         </Form>
       </Card>
