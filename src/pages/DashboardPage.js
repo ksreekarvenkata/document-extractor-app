@@ -11,12 +11,12 @@ import {
   Row,
   Col,
   Alert,
-  Spinner, // ADDED: For a better loading indicator
+  Spinner, 
 } from 'react-bootstrap';
 import { BsFileEarmarkText } from 'react-icons/bs';
 
-// MODIFIED: Point to your local backend server
-const API_BASE_URL = 'https://93a1-49-206-252-213.ngrok-free.app';
+
+const API_BASE_URL = 'https://afda-49-206-252-213.ngrok-free.app';     // backend API link
 
 const DashboardPage = ({ onLogin }) => {
   const [showModal, setShowModal] = useState(false);
@@ -31,8 +31,9 @@ const DashboardPage = ({ onLogin }) => {
   const [signupPassword, setSignupPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // --- ADDED: Validation functions to match your backend's rules ---
-  const isValidEmail = (email) => {
+
+  const isValidEmail = (email) => {     // validating the backend Api 
+    
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) return false;
     const allowedDomains = ["gmail.com", "yahoo.com", "outlook.com"];

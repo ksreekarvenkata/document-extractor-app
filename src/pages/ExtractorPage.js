@@ -3,7 +3,7 @@ import { Container, Row, Col, Card, Form, Button, Image } from 'react-bootstrap'
 import * as pdfjsLib from 'pdfjs-dist';
 import { GlobalWorkerOptions } from 'pdfjs-dist';
 
-// Use CDN for worker to avoid local issues
+
 GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const ExtractorPage = ({ onSaveSuccess }) => {
@@ -16,13 +16,13 @@ const ExtractorPage = ({ onSaveSuccess }) => {
 
   const fileInputRef = useRef(null);
 
-  // ✅ File upload to API
-  const uploadToServer = async (file) => {
+
+  const uploadToServer = async (file) => {        // uploading Api 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://93a1-49-206-252-213.ngrok-free.app/api/documents/upload', {
+      const response = await fetch('https://afda-49-206-252-213.ngrok-free.app/upload', {
         method: 'POST',
         body: formData,
       });
@@ -31,15 +31,15 @@ const ExtractorPage = ({ onSaveSuccess }) => {
         throw new Error('File upload failed');
       }
 
-      console.log('✅ File uploaded successfully');
+      console.log('✅File uploaded successfully');
     } catch (err) {
-      console.error('❌ Upload error:', err);
+      console.error('❌Upload error:', err);
       setUploadError('File upload failed. Please try again.');
     }
   };
 
-  // 📂 Handle file input
-  const handleFileChange = async (e) => {
+
+  const handleFileChange = async (e) => {     //handling of the file input section
     const file = e.target.files[0];
     if (!file) return;
 
@@ -47,8 +47,8 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     setUploadError('');
     setSaveMessage('');
 
-    // ⬆️ Upload file to server
-    await uploadToServer(file);
+
+    await uploadToServer(file);      // file uplaoding to server 
 
     if (file.type === 'application/pdf') {
       const buffer = await file.arrayBuffer();
@@ -75,8 +75,8 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     }
   };
 
-  // 🗑 Clear data
-  const handleClear = () => {
+
+  const handleClear = () => {           //clearing the input section
     setFileName('');
     setExtractedText('');
     setEditableText('');
@@ -86,9 +86,8 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     fileInputRef.current.value = '';
   };
 
-  // 💾 Save to localStorage history
   const handleSaveToHistory = () => {
-    const history = JSON.parse(localStorage.getItem('extractionHistory')) || [];
+    const history = JSON.parse(localStorage.getItem('extractionHistory')) || [];      // saved to the local storage can be removed
     const newRecord = {
       fileName,
       content: editableText,
@@ -100,9 +99,9 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     if (onSaveSuccess) onSaveSuccess();
   };
 
-  // 🖊 Render extracted or editable paragraphs
+
   const renderParagraphs = (text, editable = false) => {
-    return text.split(/\n\n+/).map((para, idx) => (
+    return text.split(/\n\n+/).map((para, idx) => (           // edits of the praagraphs
       <Card key={idx} className="mb-3 p-2 border border-secondary">
         {editable ? (
           <Form.Control
