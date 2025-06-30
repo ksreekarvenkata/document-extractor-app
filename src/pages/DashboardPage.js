@@ -59,10 +59,7 @@ const DashboardPage = ({ onLogin }) => {
       setError('Please enter a valid email and password.');
       return;
     }
-    if (!captchaToken) {
-      setError('Please complete the CAPTCHA.');
-      return;
-    }
+  
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/login`, {
