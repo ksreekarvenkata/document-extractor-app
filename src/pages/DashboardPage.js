@@ -16,7 +16,7 @@ import {
 import { BsFileEarmarkText } from 'react-icons/bs';
 import ReCAPTCHA from 'react-google-recaptcha';
 
-const API_BASE_URL = 'https://fe79-49-206-252-213.ngrok-free.app';
+const API_BASE_URL = 'https://a777-49-206-252-213.ngrok-free.app/api/auth';
 const SITE_KEY = process.env.REACT_APP_RECAPTCHA_SITE_KEY || '6LcqOG8rAAAAAG8xz5OthOiBzoXryF2LiCWxwPsW'; // Replace with your real key
 
 const DashboardPage = ({ onLogin }) => {
