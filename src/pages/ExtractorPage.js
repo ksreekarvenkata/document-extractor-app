@@ -1,19 +1,16 @@
 import React, { useRef, useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Image } from 'react-bootstrap';
-import * as pdfjsLib from 'pdfjs-dist';
-import { GlobalWorkerOptions } from 'pdfjs-dist';
+import { useNavigate } from 'react-router-dom';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
-// Use CDN for worker to avoid local issues
-GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
-const ExtractorPage = ({ onSaveSuccess }) => {
+const ExtractorPage = () => {
   const [fileName, setFileName] = useState('');
   const [extractedText, setExtractedText] = useState('');
   const [editableText, setEditableText] = useState('');
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
-  const [saveMessage, setSaveMessage] = useState('');
-
   const fileInputRef = useRef(null);
+  const navigate = useNavigate();
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -24,8 +21,8 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     if (file.type === 'application/pdf') {
       const buffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-
       let fullText = '';
+
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
@@ -36,9 +33,6 @@ const ExtractorPage = ({ onSaveSuccess }) => {
       setExtractedText(fullText.trim());
       setEditableText(fullText.trim());
       setImagePreviewUrl(null);
-
-      // Upload file to server
-      uploadToServer(file);
     } else if (file.type.startsWith('image/')) {
       const imageUrl = URL.createObjectURL(file);
       setImagePreviewUrl(imageUrl);
@@ -49,51 +43,25 @@ const ExtractorPage = ({ onSaveSuccess }) => {
     }
   };
 
-  const uploadToServer = async (file) => {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const token = localStorage.getItem('token');
-
-      const response = await fetch('https://a777-49-206-252-213.ngrok-free.app/api/pdf/upload', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      console.log('✅ File uploaded to backend');
-    } catch (error) {
-      console.error('❌ Upload error:', error);
-    }
-  };
-
   const handleClear = () => {
     setFileName('');
     setExtractedText('');
     setEditableText('');
     setImagePreviewUrl(null);
-    setSaveMessage('');
     fileInputRef.current.value = '';
   };
 
-  const handleSaveToHistory = () => {
-    const history = JSON.parse(localStorage.getItem('extractionHistory')) || [];
-    const newRecord = {
+  const handleSave = () => {
+    const currentHistory = JSON.parse(localStorage.getItem('extractionHistory')) || [];
+    const newEntry = {
       fileName,
-      content: editableText,
+      text: editableText,
       date: new Date().toLocaleString(),
     };
-    const updatedHistory = [newRecord, ...history];
-    localStorage.setItem('extractionHistory', JSON.stringify(updatedHistory));
-    setSaveMessage('✅ Saved to history successfully!');
-    if (onSaveSuccess) onSaveSuccess();
+
+    localStorage.setItem('extractionHistory', JSON.stringify([newEntry, ...currentHistory]));
+    handleClear();
+    navigate('/history');
   };
 
   const renderParagraphs = (text, editable = false) => {
@@ -129,9 +97,7 @@ const ExtractorPage = ({ onSaveSuccess }) => {
 
         {fileName && (
           <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap">
-            <div className="mb-2">
-              <strong>File:</strong> {fileName}
-            </div>
+            <div className="mb-2"><strong>File:</strong> {fileName}</div>
             <Button variant="danger" size="sm" onClick={handleClear}>Clear</Button>
           </div>
         )}
@@ -145,29 +111,30 @@ const ExtractorPage = ({ onSaveSuccess }) => {
       )}
 
       {extractedText && (
-        <Row>
-          <Col lg={6} sm={12} className="mb-4">
-            <Card className="p-3 h-100 shadow-sm">
-              <h6 className="mb-3">Extracted Text</h6>
-              <div style={{ height: '400px', overflowY: 'scroll', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
-                {renderParagraphs(extractedText)}
-              </div>
-            </Card>
-          </Col>
+        <>
+          <Row>
+            <Col lg={6} sm={12} className="mb-4">
+              <Card className="p-3 h-100 shadow-sm">
+                <h6 className="mb-3">Extracted Text</h6>
+                <div style={{ height: '400px', overflowY: 'scroll', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
+                  {renderParagraphs(extractedText)}
+                </div>
+              </Card>
+            </Col>
 
-          <Col lg={6} sm={12} className="mb-4">
-            <Card className="p-3 h-100 shadow-sm">
-              <h6 className="mb-3">Editable Text</h6>
-              <div style={{ height: '400px', overflowY: 'scroll', backgroundColor: '#fff3cd', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
-                {renderParagraphs(editableText, true)}
-              </div>
-              <div className="text-end mt-3">
-                <Button variant="success" onClick={handleSaveToHistory}>Save to History</Button>
-              </div>
-              {saveMessage && <div className="mt-2 text-success">{saveMessage}</div>}
-            </Card>
-          </Col>
-        </Row>
+            <Col lg={6} sm={12} className="mb-4">
+              <Card className="p-3 h-100 shadow-sm">
+                <h6 className="mb-3">Editable Text</h6>
+                <div style={{ height: '400px', overflowY: 'scroll', backgroundColor: '#fff3cd', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
+                  {renderParagraphs(editableText, true)}
+                </div>
+              </Card>
+            </Col>
+          </Row>
+          <div className="text-end mb-5">
+            <Button variant="success" onClick={handleSave}>Save</Button>
+          </div>
+        </>
       )}
     </Container>
   );

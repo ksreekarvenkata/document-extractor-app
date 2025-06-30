@@ -1,36 +1,23 @@
-import React, { useEffect, useState } from 'react';
-import { Card, ListGroup, Container } from 'react-bootstrap';
+import React from 'react';
+import { Card, Container } from 'react-bootstrap';
 
 const HistoryPage = () => {
-  const [history, setHistory] = useState([]);
-
-  useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('extractionHistory')) || [];
-    setHistory(saved);
-  }, []);
+  const history = JSON.parse(localStorage.getItem('extractionHistory')) || [];
 
   return (
-    <Container className="mt-4">
-      <Card className="p-4 shadow-sm">
-        <Card.Title> Extraction History</Card.Title>
-        {history.length === 0 ? (
-          <p>No extractions saved yet.</p>
-        ) : (
-          <ListGroup>
-            {history.map((item, idx) => (
-              <ListGroup.Item key={idx}>
-                <strong>{item.fileName}</strong>
-                <br />
-                <small>{item.date}</small>
-                <br />
-                <pre className="mt-2" style={{ whiteSpace: 'pre-wrap' }}>
-                  {item.text.length > 200 ? item.text.slice(0, 200) + '...' : item.text}
-                </pre>
-              </ListGroup.Item>
-            ))}
-          </ListGroup>
-        )}
-      </Card>
+    <Container>
+      <h4 className="mb-4">Extraction History</h4>
+      {history.length === 0 ? (
+        <p>No history yet.</p>
+      ) : (
+        history.map((record, index) => (
+          <Card key={index} className="mb-3 p-3 shadow-sm">
+            <h6>{record.fileName}</h6>
+            <small className="text-muted">{record.date}</small>
+            <p className="mt-2" style={{ whiteSpace: 'pre-wrap' }}>{record.content}</p>
+          </Card>
+        ))
+      )}
     </Container>
   );
 };

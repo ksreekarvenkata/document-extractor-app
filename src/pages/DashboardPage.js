@@ -14,10 +14,6 @@ import {
   Spinner,
 } from 'react-bootstrap';
 import { BsFileEarmarkText } from 'react-icons/bs';
-import ReCAPTCHA from 'react-google-recaptcha';
-
-const API_BASE_URL = 'https://a777-49-206-252-213.ngrok-free.app/api/auth';
-const SITE_KEY = process.env.REACT_APP_RECAPTCHA_SITE_KEY || '6LcqOG8rAAAAAG8xz5OthOiBzoXryF2LiCWxwPsW'; // Replace with your real key
 
 const DashboardPage = ({ onLogin }) => {
   const [showModal, setShowModal] = useState(false);
@@ -31,7 +27,8 @@ const DashboardPage = ({ onLogin }) => {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [captchaToken, setCaptchaToken] = useState('');
+
+  const API_BASE_URL = 'http://localhost:5000/api/auth';
 
   const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -47,11 +44,6 @@ const DashboardPage = ({ onLogin }) => {
   };
 
   const isValidName = (name) => typeof name === 'string' && name.trim().length >= 2;
-
-  const handleCaptcha = (token) => {
-    setCaptchaToken(token);
-    setError('');
-  };
 
   const handleResponse = async (response) => {
     const data = await response.json();
@@ -76,7 +68,7 @@ const DashboardPage = ({ onLogin }) => {
       const response = await fetch(`${API_BASE_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword, captcha: captchaToken }),
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
       });
       const data = await handleResponse(response);
       localStorage.setItem('token', data.token);
@@ -104,10 +96,6 @@ const DashboardPage = ({ onLogin }) => {
       setError('Password must be 8+ chars, with 1 uppercase, 1 number, & 1 special character.');
       return;
     }
-    if (!captchaToken) {
-      setError('Please complete the CAPTCHA.');
-      return;
-    }
     setLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/register`, {
@@ -118,7 +106,6 @@ const DashboardPage = ({ onLogin }) => {
           lastName: signupLastName,
           email: signupEmail,
           password: signupPassword,
-          captcha: captchaToken,
         }),
       });
       const data = await handleResponse(response);
@@ -141,7 +128,6 @@ const DashboardPage = ({ onLogin }) => {
     setSignupLastName('');
     setSignupEmail('');
     setSignupPassword('');
-    setCaptchaToken('');
     setShowModal(true);
   };
 
@@ -194,7 +180,6 @@ const DashboardPage = ({ onLogin }) => {
                 <Form.Label>Password</Form.Label>
                 <Form.Control type="password" placeholder="Enter password" value={loginPassword} required onChange={(e) => setLoginPassword(e.target.value)} />
               </Form.Group>
-              <ReCAPTCHA sitekey={SITE_KEY} onChange={handleCaptcha} className="mb-3" />
               <Button className="w-100" type="submit" variant="primary" disabled={loading}>{loading ? <><Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Logging in...</> : 'Login'}</Button>
             </Form>
           ) : (
@@ -221,7 +206,6 @@ const DashboardPage = ({ onLogin }) => {
                 <Form.Label>Password</Form.Label>
                 <Form.Control type="password" placeholder="Create password" value={signupPassword} required onChange={(e) => setSignupPassword(e.target.value)} />
               </Form.Group>
-              <ReCAPTCHA sitekey={SITE_KEY} onChange={handleCaptcha} className="mb-3" />
               <Button className="w-100" type="submit" variant="success" disabled={loading}>{loading ? <><Spinner as="span" animation="border" size="sm" role="status" aria-hidden="true" /> Creating...</> : 'Create Account'}</Button>
             </Form>
           )}
