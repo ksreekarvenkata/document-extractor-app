@@ -1,3 +1,4 @@
+// src/App.js
 import React, { useState } from 'react';
 import DashboardPage from './pages/DashboardPage';
 import ExtractorPage from './pages/ExtractorPage';

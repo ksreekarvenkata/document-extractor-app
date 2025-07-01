@@ -1,53 +1,71 @@
+// src/pages/ExtractorPage.js
 import React, { useRef, useState } from 'react';
-import { Container, Row, Col, Card, Form, Button, Image } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
+import { Container, Row, Col, Card, Form, Button, Spinner } from 'react-bootstrap';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import Tesseract from 'tesseract.js';
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const ExtractorPage = () => {
   const [fileName, setFileName] = useState('');
   const [extractedText, setExtractedText] = useState('');
   const [editableText, setEditableText] = useState('');
-  const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+  const [loading, setLoading] = useState(false);
   const fileInputRef = useRef(null);
-  const navigate = useNavigate();
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setFileName(file.name);
+    setExtractedText('');
+    setEditableText('');
+    setLoading(true);
 
-    if (file.type === 'application/pdf') {
-      const buffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-      let fullText = '';
+    try {
+      if (file.type === 'application/pdf') {
+        const buffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+        let fullText = '';
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        fullText += `Page ${i}:\n`;
-        fullText += content.items.map((item) => item.str).join(' ') + '\n\n';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 2 });
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({ canvasContext: context, viewport }).promise;
+
+          const dataUrl = canvas.toDataURL('image/png');
+
+          // Layout OCR using Tesseract with PSM 1 (Automatic page segmentation with OSD)
+          const result = await Tesseract.recognize(dataUrl, 'eng', {
+            tessedit_pageseg_mode: 1,
+            logger: (m) => console.log(m),
+          });
+
+          fullText += `\n--- Page ${i} ---\n${result.data.text.trim()}\n`;
+        }
+
+        setExtractedText(fullText.trim());
+        setEditableText(fullText.trim());
+      } else {
+        alert('Only PDF files are supported.');
       }
-
-      setExtractedText(fullText.trim());
-      setEditableText(fullText.trim());
-      setImagePreviewUrl(null);
-    } else if (file.type.startsWith('image/')) {
-      const imageUrl = URL.createObjectURL(file);
-      setImagePreviewUrl(imageUrl);
-      setExtractedText('Extracted text from image goes here...');
-      setEditableText('Extracted text from image goes here...');
-    } else {
-      alert('Please upload a valid PDF or image file.');
+    } catch (err) {
+      console.error('OCR Error:', err);
+      alert('Failed to extract text from PDF.');
     }
+
+    setLoading(false);
   };
 
   const handleClear = () => {
     setFileName('');
     setExtractedText('');
     setEditableText('');
-    setImagePreviewUrl(null);
     fileInputRef.current.value = '';
   };
 
@@ -58,41 +76,18 @@ const ExtractorPage = () => {
       text: editableText,
       date: new Date().toLocaleString(),
     };
-
     localStorage.setItem('extractionHistory', JSON.stringify([newEntry, ...currentHistory]));
+    alert('Saved successfully!');
     handleClear();
-    navigate('/history');
-  };
-
-  const renderParagraphs = (text, editable = false) => {
-    return text.split(/\n\n+/).map((para, idx) => (
-      <Card key={idx} className="mb-3 p-2 border border-secondary">
-        {editable ? (
-          <Form.Control
-            as="textarea"
-            rows={3}
-            value={para}
-            onChange={(e) => {
-              const newParas = editableText.split(/\n\n+/);
-              newParas[idx] = e.target.value;
-              setEditableText(newParas.join('\n\n'));
-            }}
-            style={{ resize: 'none', background: 'transparent', border: 'none' }}
-          />
-        ) : (
-          <div>{para}</div>
-        )}
-      </Card>
-    ));
   };
 
   return (
     <Container className="mt-4">
       <Card className="p-4 mb-4 shadow-sm">
-        <h5 className="mb-3">Upload Document</h5>
-        <Form.Group controlId="formFile">
-          <Form.Label><strong>Upload PDF or Image</strong></Form.Label>
-          <Form.Control type="file" accept=".pdf,image/*" onChange={handleFileChange} ref={fileInputRef} />
+        <h5 className="mb-3">Upload Sea Waybill or Scanned PDF</h5>
+        <Form.Group>
+          <Form.Label><strong>PDF File</strong></Form.Label>
+          <Form.Control type="file" accept=".pdf" onChange={handleFileChange} ref={fileInputRef} />
         </Form.Group>
 
         {fileName && (
@@ -103,11 +98,11 @@ const ExtractorPage = () => {
         )}
       </Card>
 
-      {imagePreviewUrl && (
-        <Card className="mb-4 p-3 shadow-sm text-center">
-          <h6 className="mb-3">Preview Image</h6>
-          <Image src={imagePreviewUrl} alt="Preview" fluid rounded style={{ maxHeight: '400px', objectFit: 'contain' }} />
-        </Card>
+      {loading && (
+        <div className="text-center my-4">
+          <Spinner animation="border" variant="primary" />
+          <p className="mt-3">Performing OCR with layout recognition…</p>
+        </div>
       )}
 
       {extractedText && (
@@ -115,9 +110,9 @@ const ExtractorPage = () => {
           <Row>
             <Col lg={6} sm={12} className="mb-4">
               <Card className="p-3 h-100 shadow-sm">
-                <h6 className="mb-3">Extracted Text</h6>
-                <div style={{ height: '400px', overflowY: 'scroll', backgroundColor: '#f8f9fa', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
-                  {renderParagraphs(extractedText)}
+                <h6 className="mb-3">Exact Extracted Text (Read-Only)</h6>
+                <div style={{ height: '400px', overflowY: 'scroll', background: '#f8f9fa', padding: '10px', whiteSpace: 'pre-wrap', border: '1px solid #ccc', borderRadius: '8px' }}>
+                  {extractedText}
                 </div>
               </Card>
             </Col>
@@ -125,13 +120,18 @@ const ExtractorPage = () => {
             <Col lg={6} sm={12} className="mb-4">
               <Card className="p-3 h-100 shadow-sm">
                 <h6 className="mb-3">Editable Text</h6>
-                <div style={{ height: '400px', overflowY: 'scroll', backgroundColor: '#fff3cd', border: '1px solid #ccc', borderRadius: '8px', padding: '10px' }}>
-                  {renderParagraphs(editableText, true)}
-                </div>
+                <Form.Control
+                  as="textarea"
+                  value={editableText}
+                  onChange={(e) => setEditableText(e.target.value)}
+                  rows={20}
+                  style={{ height: '400px', resize: 'none' }}
+                />
               </Card>
             </Col>
           </Row>
-          <div className="text-end mb-5">
+
+          <div className="text-end mt-3">
             <Button variant="success" onClick={handleSave}>Save</Button>
           </div>
         </>

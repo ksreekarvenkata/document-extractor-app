@@ -28,14 +28,11 @@ const DashboardPage = ({ onLogin }) => {
   const [signupPassword, setSignupPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const API_BASE_URL = 'http://localhost:5000/api/auth';
-
   const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return false;
     const allowedDomains = ['gmail.com', 'yahoo.com', 'outlook.com'];
     const domain = email.split('@')[1];
-    return allowedDomains.includes(domain);
+    return emailRegex.test(email) && allowedDomains.includes(domain);
   };
 
   const isStrongPassword = (password) => {
@@ -45,37 +42,19 @@ const DashboardPage = ({ onLogin }) => {
 
   const isValidName = (name) => typeof name === 'string' && name.trim().length >= 2;
 
-  const handleResponse = async (response) => {
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || `Request failed with status ${response.status}`);
-    }
-    return data;
-  };
-
   const handleLogin = async () => {
     setError('');
     if (!isValidEmail(loginEmail) || !loginPassword) {
       setError('Please enter a valid email and password.');
       return;
     }
-  
+
     setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-      });
-      const data = await handleResponse(response);
-      localStorage.setItem('token', data.token);
-      onLogin(data);
-      setShowModal(false);
-    } catch (err) {
-      setError(err.message);
-    } finally {
+    setTimeout(() => {
       setLoading(false);
-    }
+      onLogin?.({ email: loginEmail }); // Simulate login success
+      setShowModal(false);
+    }, 1000);
   };
 
   const handleSignUp = async () => {
@@ -93,26 +72,13 @@ const DashboardPage = ({ onLogin }) => {
       setError('Password must be 8+ chars, with 1 uppercase, 1 number, & 1 special character.');
       return;
     }
+
     setLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          firstName: signupFirstName,
-          lastName: signupLastName,
-          email: signupEmail,
-          password: signupPassword,
-        }),
-      });
-      const data = await handleResponse(response);
-      setMessage(data.message + ' You can now login.');
-      setActiveForm('login');
-    } catch (err) {
-      setError(err.message);
-    } finally {
+    setTimeout(() => {
       setLoading(false);
-    }
+      setMessage('Account created successfully! You can now log in.');
+      setActiveForm('login');
+    }, 1200);
   };
 
   const openModal = (formType) => {
