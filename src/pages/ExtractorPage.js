@@ -43,7 +43,7 @@ const ExtractorPage = () => {
           // Layout OCR using Tesseract with PSM 1 (Automatic page segmentation with OSD)
           const result = await Tesseract.recognize(dataUrl, 'eng', {
             tessedit_pageseg_mode: 1,
-            logger: (m) => console.log(m),
+            logger: (m) => console.log(m)
           });
 
           fullText += `\n--- Page ${i} ---\n${result.data.text.trim()}\n`;
@@ -84,7 +84,7 @@ const ExtractorPage = () => {
   return (
     <Container className="mt-4">
       <Card className="p-4 mb-4 shadow-sm">
-        <h5 className="mb-3">Upload Sea Waybill or Scanned PDF</h5>
+        <h5 className="mb-3">Upload PDF</h5>
         <Form.Group>
           <Form.Label><strong>PDF File</strong></Form.Label>
           <Form.Control type="file" accept=".pdf" onChange={handleFileChange} ref={fileInputRef} />
