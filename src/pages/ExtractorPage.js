@@ -1,61 +1,128 @@
 // src/pages/ExtractorPage.js
 import React, { useRef, useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Spinner } from 'react-bootstrap';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import * as pdfjsLib from 'pdfjs-dist/build/pdf';
 import Tesseract from 'tesseract.js';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Set worker source safely
+const setWorkerSrc = () => {
+  const version = pdfjsLib.version || '3.4.120'; // Fallback version
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdn.jsdelivr.net/npm/pdfjs-dist@${version}/build/pdf.worker.min.js`;
+};
+
+setWorkerSrc();
 
 const ExtractorPage = () => {
   const [fileName, setFileName] = useState('');
   const [extractedText, setExtractedText] = useState('');
   const [editableText, setEditableText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [pdfFile, setPdfFile] = useState(null);
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [pdfScale, setPdfScale] = useState(1.0);
   const fileInputRef = useRef(null);
+  const canvasRef = useRef(null);
+
+
+  //render the PDF
+  const renderPdfPage = async (pageNum) => {
+    if (!pdfDoc) return;
+
+    try {
+      const page = await pdfDoc.getPage(pageNum);
+      const viewport = page.getViewport({ scale: pdfScale });
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      const renderContext = {
+        canvasContext: context,
+        viewport: viewport
+      };
+
+      await page.render(renderContext).promise;
+    } catch (error) {
+      console.error('Error rendering PDF page:', error);
+    }
+  };
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    if (!file) return;
+    if (!file || file.type !== 'application/pdf') {
+      alert('Please upload a valid PDF file.');
+      return;
+    }
 
     setFileName(file.name);
+    setPdfFile(file);
     setExtractedText('');
     setEditableText('');
     setLoading(true);
 
     try {
-      if (file.type === 'application/pdf') {
-        const buffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-        let fullText = '';
+      const buffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+      
+      // Set PDF document for viewing
+      setPdfDoc(pdf);
+      setTotalPages(pdf.numPages);
+      setCurrentPage(1);
 
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 2 });
+      let fullText = '';
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1.5 });
+
+        // Try native text extraction first
+        const textContent = await page.getTextContent().catch(() => ({ items: [] }));
+        const rawText = textContent.items.map(item => item.str).join(' ');
+
+        if (rawText.trim()) {
+          // Native text available → use it
+          const lines = {};
+
+          textContent.items.forEach(item => {
+            const y = Math.floor(item.transform[5]);
+            if (!lines[y]) lines[y] = [];
+            lines[y].push(item.str);
+          });
+
+          const sortedLines = Object.keys(lines)
+            .sort((a, b) => b - a)
+            .map(y => lines[y].join(' '));
+
+          fullText += `\n--- Page ${i} ---\n${sortedLines.join('\n')}`;
+        } else {
+          // No native text → fall back to OCR
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
           canvas.width = viewport.width;
           canvas.height = viewport.height;
 
           await page.render({ canvasContext: context, viewport }).promise;
-
           const dataUrl = canvas.toDataURL('image/png');
 
-          // Layout OCR using Tesseract with PSM 1 (Automatic page segmentation with OSD)
           const result = await Tesseract.recognize(dataUrl, 'eng', {
-            tessedit_pageseg_mode: 1,
-            logger: (m) => console.log(m)
+            logger: m => console.log(m),
+            tessedit_pageseg_mode: 6, // Assume a uniform block of text
           });
 
-          fullText += `\n--- Page ${i} ---\n${result.data.text.trim()}\n`;
+          fullText += `\n--- Page ${i} ---\n${result.data.text.trim()}`;
         }
-
-        setExtractedText(fullText.trim());
-        setEditableText(fullText.trim());
-      } else {
-        alert('Only PDF files are supported.');
       }
+
+      setExtractedText(fullText.trim());
+      setEditableText(fullText.trim());
+      
+      // Render first page
+      await renderPdfPage(1);
     } catch (err) {
-      console.error('OCR Error:', err);
+      console.error('Extraction Error:', err);
       alert('Failed to extract text from PDF.');
     }
 
@@ -66,6 +133,10 @@ const ExtractorPage = () => {
     setFileName('');
     setExtractedText('');
     setEditableText('');
+    setPdfFile(null);
+    setPdfDoc(null);
+    setCurrentPage(1);
+    setTotalPages(0);
     fileInputRef.current.value = '';
   };
 
@@ -81,8 +152,27 @@ const ExtractorPage = () => {
     handleClear();
   };
 
+  const handlePageChange = async (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      await renderPdfPage(newPage);
+    }
+  };
+
+  const handleZoomIn = async () => {
+    const newScale = Math.min(pdfScale + 0.2, 3.0);
+    setPdfScale(newScale);
+    await renderPdfPage(currentPage);
+  };
+
+  const handleZoomOut = async () => {
+    const newScale = Math.max(pdfScale - 0.2, 0.5);
+    setPdfScale(newScale);
+    await renderPdfPage(currentPage);
+  };
+
   return (
-    <Container className="mt-4">
+    <Container fluid className="mt-4">
       <Card className="p-4 mb-4 shadow-sm">
         <h5 className="mb-3">Upload PDF</h5>
         <Form.Group>
@@ -101,40 +191,99 @@ const ExtractorPage = () => {
       {loading && (
         <div className="text-center my-4">
           <Spinner animation="border" variant="primary" />
-          <p className="mt-3">Performing OCR with layout recognition…</p>
+          <p className="mt-3">Extracting text with layout recognition…</p>
         </div>
       )}
 
       {extractedText && (
-        <>
-          <Row>
-            <Col lg={6} sm={12} className="mb-4">
-              <Card className="p-3 h-100 shadow-sm">
-                <h6 className="mb-3">Exact Extracted Text (Read-Only)</h6>
-                <div style={{ height: '400px', overflowY: 'scroll', background: '#f8f9fa', padding: '10px', whiteSpace: 'pre-wrap', border: '1px solid #ccc', borderRadius: '8px' }}>
-                  {extractedText}
+        <Row>
+          {/* PDF Viewer Panel */}
+          <Col lg={6} md={6} sm={12} className="mb-4">
+            <Card className="p-3 h-100 shadow-sm">
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h6 className="mb-0">PDF Viewer</h6>
+                <div className="d-flex gap-2">
+                  <Button variant="outline-secondary" size="sm" onClick={handleZoomOut}>
+                    -
+                  </Button>
+                  <span className="px-2" style={{ fontSize: '14px' }}>
+                    {Math.round(pdfScale * 100)}%
+                  </span>
+                  <Button variant="outline-secondary" size="sm" onClick={handleZoomIn}>
+                    +
+                  </Button>
                 </div>
-              </Card>
-            </Col>
-
-            <Col lg={6} sm={12} className="mb-4">
-              <Card className="p-3 h-100 shadow-sm">
-                <h6 className="mb-3">Editable Text</h6>
-                <Form.Control
-                  as="textarea"
-                  value={editableText}
-                  onChange={(e) => setEditableText(e.target.value)}
-                  rows={20}
-                  style={{ height: '400px', resize: 'none' }}
+              </div>
+              
+              <div 
+                style={{
+                  height: '500px',
+                  overflowY: 'auto',
+                  border: '1px solid #ccc',
+                  borderRadius: '8px',
+                  background: '#f8f9fa',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'flex-start',
+                  padding: '10px'
+                }}
+              >
+                <canvas 
+                  ref={canvasRef}
+                  style={{
+                    maxWidth: '100%',
+                    height: 'auto',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}
                 />
-              </Card>
-            </Col>
-          </Row>
+              </div>
+              
+              {totalPages > 1 && (
+                <div className="d-flex justify-content-between align-items-center mt-3">
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm" 
+                    disabled={currentPage === 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                  >
+                    Previous
+                  </Button>
+                  <span style={{ fontSize: '14px' }}>
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button 
+                    variant="outline-primary" 
+                    size="sm" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
+            </Card>
+          </Col>
 
-          <div className="text-end mt-3">
-            <Button variant="success" onClick={handleSave}>Save</Button>
-          </div>
-        </>
+          {/* Editable Text Panel */}
+          <Col lg={6} md={6} sm={12} className="mb-4">
+            <Card className="p-3 h-100 shadow-sm">
+              <h6 className="mb-3">Editable Text</h6>
+              <Form.Control
+                as="textarea"
+                value={editableText}
+                onChange={(e) => setEditableText(e.target.value)}
+                style={{ 
+                  height: '500px', 
+                  resize: 'none',
+                  fontSize: '14px'
+                }}
+              />
+              <div className="text-end mt-3">
+                <Button variant="success" onClick={handleSave}>Save</Button>
+              </div>
+            </Card>
+          </Col>
+        </Row>
       )}
     </Container>
   );
