@@ -25,8 +25,7 @@ const ExtractorPage = () => {
   const fileInputRef = useRef(null);
   const canvasRef = useRef(null);
 
-
-  //render the PDF
+  // Render PDF page to canvas
   const renderPdfPage = async (pageNum) => {
     if (!pdfDoc) return;
 
@@ -50,6 +49,7 @@ const ExtractorPage = () => {
     }
   };
 
+  // Handle file upload
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file || file.type !== 'application/pdf') {
@@ -66,8 +66,7 @@ const ExtractorPage = () => {
     try {
       const buffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-      
-      // Set PDF document for viewing
+
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
       setCurrentPage(1);
@@ -78,14 +77,11 @@ const ExtractorPage = () => {
         const page = await pdf.getPage(i);
         const viewport = page.getViewport({ scale: 1.5 });
 
-        // Try native text extraction first
         const textContent = await page.getTextContent().catch(() => ({ items: [] }));
         const rawText = textContent.items.map(item => item.str).join(' ');
 
         if (rawText.trim()) {
-          // Native text available → use it
           const lines = {};
-
           textContent.items.forEach(item => {
             const y = Math.floor(item.transform[5]);
             if (!lines[y]) lines[y] = [];
@@ -98,7 +94,6 @@ const ExtractorPage = () => {
 
           fullText += `\n--- Page ${i} ---\n${sortedLines.join('\n')}`;
         } else {
-          // No native text → fall back to OCR
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d');
           canvas.width = viewport.width;
@@ -109,7 +104,7 @@ const ExtractorPage = () => {
 
           const result = await Tesseract.recognize(dataUrl, 'eng', {
             logger: m => console.log(m),
-            tessedit_pageseg_mode: 6, // Assume a uniform block of text
+            tessedit_pageseg_mode: 6,
           });
 
           fullText += `\n--- Page ${i} ---\n${result.data.text.trim()}`;
@@ -118,8 +113,7 @@ const ExtractorPage = () => {
 
       setExtractedText(fullText.trim());
       setEditableText(fullText.trim());
-      
-      // Render first page
+
       await renderPdfPage(1);
     } catch (err) {
       console.error('Extraction Error:', err);
@@ -129,6 +123,7 @@ const ExtractorPage = () => {
     setLoading(false);
   };
 
+  // Clear all state
   const handleClear = () => {
     setFileName('');
     setExtractedText('');
@@ -140,11 +135,12 @@ const ExtractorPage = () => {
     fileInputRef.current.value = '';
   };
 
+  // Save to localStorage
   const handleSave = () => {
     const currentHistory = JSON.parse(localStorage.getItem('extractionHistory')) || [];
     const newEntry = {
       fileName,
-      text: editableText,
+      editableText,
       date: new Date().toLocaleString(),
     };
     localStorage.setItem('extractionHistory', JSON.stringify([newEntry, ...currentHistory]));
@@ -152,6 +148,56 @@ const ExtractorPage = () => {
     handleClear();
   };
 
+  // Parse flat string into structured array of pages & lines
+  const parseStructuredText = (rawText) => {
+    const lines = rawText.split('\n');
+    const result = [];
+    let currentPage = null;
+
+    for (let line of lines) {
+      const pageMatch = line.match(/--- Page (\d+) ---/);
+      if (pageMatch) {
+        if (currentPage && currentPage.lines.length > 0) {
+          result.push(currentPage);
+        }
+        currentPage = {
+          page: parseInt(pageMatch[1], 10),
+          lines: []
+        };
+      } else if (currentPage && line.trim() !== '') {
+        currentPage.lines.push(line.trim());
+      }
+    }
+
+    if (currentPage && currentPage.lines.length > 0) {
+      result.push(currentPage);
+    }
+
+    return result;
+  };
+
+  // Download structured JSON
+  const handleDownloadJson = () => {
+    const extractedStructure = parseStructuredText(extractedText);
+    const editableStructure = parseStructuredText(editableText);
+
+    const dataToSave = {
+      fileName,
+      extractedTextStructure: extractedStructure,
+      editableTextStructure: editableStructure,
+      dateExtracted: new Date().toISOString()
+    };
+
+    const jsonStr = JSON.stringify(dataToSave, null, 2); // Pretty print
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const link = document.createElement('a');
+
+    link.href = URL.createObjectURL(blob);
+    link.download = `${fileName.replace('.pdf', '')}_structured_extract.json`;
+    link.click();
+  };
+
+  // Navigate between PDF pages
   const handlePageChange = async (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
@@ -159,6 +205,7 @@ const ExtractorPage = () => {
     }
   };
 
+  // Zoom controls
   const handleZoomIn = async () => {
     const newScale = Math.min(pdfScale + 0.2, 3.0);
     setPdfScale(newScale);
@@ -197,7 +244,7 @@ const ExtractorPage = () => {
 
       {extractedText && (
         <Row>
-          {/* PDF Viewer Panel */}
+          {/* Left Panel: PDF Viewer */}
           <Col lg={6} md={6} sm={12} className="mb-4">
             <Card className="p-3 h-100 shadow-sm">
               <div className="d-flex justify-content-between align-items-center mb-3">
@@ -214,8 +261,8 @@ const ExtractorPage = () => {
                   </Button>
                 </div>
               </div>
-              
-              <div 
+
+              <div
                 style={{
                   height: '500px',
                   overflowY: 'auto',
@@ -228,21 +275,20 @@ const ExtractorPage = () => {
                   padding: '10px'
                 }}
               >
-                <canvas 
+                <canvas
                   ref={canvasRef}
                   style={{
                     maxWidth: '100%',
-                    height: 'auto',
                     boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                   }}
                 />
               </div>
-              
+
               {totalPages > 1 && (
                 <div className="d-flex justify-content-between align-items-center mt-3">
-                  <Button 
-                    variant="outline-primary" 
-                    size="sm" 
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
                     disabled={currentPage === 1}
                     onClick={() => handlePageChange(currentPage - 1)}
                   >
@@ -251,9 +297,9 @@ const ExtractorPage = () => {
                   <span style={{ fontSize: '14px' }}>
                     Page {currentPage} of {totalPages}
                   </span>
-                  <Button 
-                    variant="outline-primary" 
-                    size="sm" 
+                  <Button
+                    variant="outline-primary"
+                    size="sm"
                     disabled={currentPage === totalPages}
                     onClick={() => handlePageChange(currentPage + 1)}
                   >
@@ -264,21 +310,25 @@ const ExtractorPage = () => {
             </Card>
           </Col>
 
-          {/* Editable Text Panel */}
+          {/* Right Panel: Editable Text Area */}
           <Col lg={6} md={6} sm={12} className="mb-4">
             <Card className="p-3 h-100 shadow-sm">
+              <div className="d-flex justify-content-end gap-2 mt-3"></div>
               <h6 className="mb-3">Editable Text</h6>
+              <Button variant="secondary" onClick={handleDownloadJson}>Download JSON</Button>
               <Form.Control
                 as="textarea"
                 value={editableText}
                 onChange={(e) => setEditableText(e.target.value)}
-                style={{ 
-                  height: '500px', 
+                style={{
+                  height: '500px',
                   resize: 'none',
-                  fontSize: '14px'
+                  fontSize: '14px',
+                  fontFamily: 'monospace'
                 }}
               />
-              <div className="text-end mt-3">
+
+              <div className="d-flex justify-content-end gap-2 mt-3">
                 <Button variant="success" onClick={handleSave}>Save</Button>
               </div>
             </Card>
